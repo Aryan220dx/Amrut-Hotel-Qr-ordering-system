@@ -1,0 +1,24 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+build/
+coverage/
+
+# Local environment secrets (keep .env.example tracked)
+.env*
+!.env.example
+
+# Local Supabase state
+supabase/.temp/
+supabase/.branches/
+
+# Local tooling
+*.tsbuildinfo
+.DS_Store
+
+# Test artifacts
+test-artifacts/
+
+# Deployment-local configuration
+.vercel/
