@@ -1,0 +1,297 @@
+.panel {
+  width: min(680px, calc(100% - 36px));
+  margin: 64px auto;
+  padding: clamp(24px, 5vw, 48px);
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.header h1 {
+  margin: 15px 0 10px;
+  color: var(--deep);
+  font: 500 clamp(34px, 6vw, 52px)/1.1 var(--serif);
+}
+
+.header > p,
+.tableCard > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.eyebrow {
+  color: #8a9891;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+
+.form,
+.content {
+  display: grid;
+  gap: 13px;
+  margin-top: 30px;
+}
+
+.form label,
+.inviteResult label,
+.tableSelect {
+  color: var(--deep);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.form input,
+.inviteResult input,
+.tableSelect select {
+  min-width: 0;
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #fcfcfa;
+  color: var(--ink);
+  font: 12px var(--sans);
+}
+
+.tableSelect {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form .primary-button,
+.tableCard .primary-button {
+  margin-top: 5px;
+}
+
+.note,
+.status,
+.authorized,
+.error {
+  margin: 0;
+  padding: 12px;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.note,
+.status {
+  background: #f5f6f1;
+  color: #75817c;
+}
+
+.authorized {
+  background: #edf3ed;
+  color: #416658;
+}
+
+.error {
+  background: #fbefec;
+  color: #923c31;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.account > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.account strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.account .outline-button,
+.inviteResult .outline-button {
+  width: auto;
+  min-width: 120px;
+  padding: 0 16px;
+}
+
+.tableCard {
+  display: grid;
+  gap: 13px;
+  margin-top: 5px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: #fcfcfa;
+}
+
+.tableCard h2 {
+  margin: 0;
+  color: var(--deep);
+  font: 500 26px var(--serif);
+}
+
+.tableCard > p {
+  margin: 0;
+}
+
+.inviteActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.inviteResult {
+  display: grid;
+  gap: 10px;
+  margin-top: 5px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.qrBlock {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.qrHeading {
+  margin: 0;
+  color: var(--deep);
+  font: 500 21px var(--serif);
+}
+
+.qrPreview {
+  width: fit-content;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.qrPreview img {
+  display: block;
+  width: min(256px, calc(100vw - 100px));
+  height: auto;
+}
+
+.orderBoard {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.boardHeading,
+.orderTopline,
+.orderFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.boardHeading h3 {
+  margin: 5px 0 0;
+  color: var(--deep);
+  font: 500 24px var(--serif);
+}
+
+.boardHeading .outline-button {
+  width: auto;
+  min-width: 92px;
+  padding: 0 12px;
+}
+
+.orderBoard > .note {
+  padding: 0;
+  background: transparent;
+}
+
+.orderList {
+  display: grid;
+  gap: 12px;
+}
+
+.orderCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.orderTopline > div {
+  display: grid;
+  gap: 5px;
+}
+
+.orderTopline p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.orderStatus {
+  padding: 6px 8px;
+  border-radius: 2px;
+  background: #edf3ed;
+  color: #416658;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.orderItems {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orderItems li,
+.orderFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.orderFooter {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.guestNote {
+  margin: 0;
+  padding: 10px;
+  background: #f5f6f1;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.orderCard .primary-button {
+  margin-top: 2px;
+}
+
+@media (max-width: 520px) {
+  .panel {
+    margin: 28px auto;
+    padding: 22px;
+  }
+
+  .account {
+    align-items: flex-start;
+  }
+}

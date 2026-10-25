@@ -6,3 +6,8 @@
 @media(max-width:390px){.hero{grid-template-columns:1fr 38%;padding-left:18px;padding-right:18px;gap:10px}.hero h1{font-size:39px}.hero-image{height:230px}.hero-copy p{font-size:10px}.hero-note{font-size:9px}.menu-section{padding-left:16px;padding-right:16px}.dish-info p{max-width:145px}.dish-info strong{font-size:9px}.table-pill{font-size:7px}.brand{gap:8px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 .selected-items{margin-top:12px;border-top:1px solid var(--line)}.selected-item{display:flex;align-items:center;gap:9px;padding:10px 2px;border-bottom:1px solid #efeee9;font-size:9px}.selected-item input{accent-color:#648576}.selected-item span{display:grid;gap:3px;flex:1}.selected-item small{color:#87928d}.selected-item b{font-size:9px}
+.category{min-height:44px;display:inline-flex;align-items:center}
+.quick-add,.close-button{width:44px;height:44px}
+.qty-control button{width:44px;height:44px}
+.history-link{min-height:44px}
+a:focus-visible,input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #286f67;outline-offset:3px}

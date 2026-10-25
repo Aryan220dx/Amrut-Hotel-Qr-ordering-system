@@ -27,7 +27,6 @@ const apiKey = status.PUBLISHABLE_KEY;
 assert.ok(apiUrl?.startsWith('http://127.0.0.1:'), 'local Supabase API must be running');
 assert.ok(apiKey, 'local publishable key must be available');
 
-const fixtureId = randomUUID();
 const tableIds = Array.from({ length: 3 }, randomUUID);
 const sessionIds = [randomUUID(), randomUUID(), randomUUID()];
 const itemIds = Array.from({ length: 3 }, randomUUID);
@@ -60,11 +59,6 @@ async function createAnonymousUser() {
 
 async function rpc(name, token, body) {
   return request(`/rest/v1/rpc/${name}`, { token, body });
-}
-
-function runSql(sql) {
-  writeFileSync(sqlFile, sql, { mode: 0o600 });
-  runCli(['db', 'query', '--local', '--file', sqlFile]);
 }
 
 async function seed() {

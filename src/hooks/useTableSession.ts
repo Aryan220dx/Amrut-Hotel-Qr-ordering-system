@@ -1,12 +1,16 @@
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getJoinErrorMessage, isValidInviteToken } from "@/lib/guest-invite.mjs";
 
 export interface TableSession {
   sessionId: string;
   guestNumber: number;
   displayLabel: string;
+  tableLabel: string;
+  guestCount: number;
 }
 
 export interface JoinResult {
@@ -15,83 +19,266 @@ export interface JoinResult {
   error?: string;
 }
 
+const STORAGE_KEY = "hotel-amrut-session";
+
 export function useTableSession() {
   const [session, setSession] = useState<TableSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const supabase = createSupabaseBrowserClient();
 
-  // Load session from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("hotel-amrut-session");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSession(parsed);
-      } catch {
-        localStorage.removeItem("hotel-amrut-session");
-      }
-    }
-    setLoading(false);
-  }, []);
+  const validateSession = useCallback(
+    async (sessionId: string, userId: string) => {
+      const { data: tableSession, error: sessionError } = await supabase
+        .from("table_sessions")
+        .select("id, dining_table_id, status")
+        .eq("id", sessionId)
+        .maybeSingle();
 
-  const join = useCallback(async (inviteToken: string): Promise<JoinResult> => {
+      if (sessionError) {
+        throw new Error(
+          "Could not verify the table session. Check your connection and retry.",
+        );
+      }
+
+      if (!tableSession || tableSession.status !== "open") {
+        throw new Error("This table session is closed or no longer available.");
+      }
+
+      const { data: membership, error: memberError } = await supabase
+        .from("table_members")
+        .select("id, guest_number, display_label")
+        .eq("session_id", sessionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (memberError) {
+        throw new Error(
+          "Could not verify your table membership. Check your connection and retry.",
+        );
+      }
+
+      if (!membership) {
+        throw new Error("Your guest membership for this table is no longer valid.");
+      }
+
+      const { data: diningTable, error: tableError } = await supabase
+        .from("dining_tables")
+        .select("label, is_active")
+        .eq("id", tableSession.dining_table_id)
+        .maybeSingle();
+
+      if (tableError) {
+        throw new Error(
+          "Could not verify table availability. Check your connection and retry.",
+        );
+      }
+
+      if (!diningTable?.is_active) {
+        throw new Error("This table is not accepting orders.");
+      }
+
+      const { count, error: countError } = await supabase
+        .from("table_members")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId);
+
+      if (countError) {
+        throw new Error(
+          "Could not load the guest list. Check your connection and retry.",
+        );
+      }
+
+      return {
+        sessionId: tableSession.id,
+        guestNumber: membership.guest_number,
+        displayLabel: membership.display_label,
+        tableLabel: diningTable.label,
+        guestCount: count ?? 1,
+      } satisfies TableSession;
+    },
+    [supabase],
+  );
+
+  const restoreSession = useCallback(async () => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (!stored) {
+      setSession(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      // Sign in anonymously if not already authenticated
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession?.user?.is_anonymous) {
-        const { error: signInError } = await supabase.auth.signInAnonymously();
-        if (signInError) {
-          throw new Error("Failed to create anonymous session");
-        }
+      const parsed: unknown = JSON.parse(stored);
+      const sessionId =
+        typeof parsed === "object" && parsed !== null && "sessionId" in parsed
+          ? (parsed as { sessionId?: unknown }).sessionId
+          : null;
+
+      if (typeof sessionId !== "string" || !sessionId) {
+        localStorage.removeItem(STORAGE_KEY);
+        setSession(null);
+        return;
       }
 
-      // Call the join_table_session RPC
-      const { data, error: rpcError } = await supabase.rpc("join_table_session", {
-        p_invite_token: inviteToken,
-      });
+      const { data, error: authError } = await supabase.auth.getSession();
 
-      if (rpcError) {
-        // The RPC returns generic error messages for security
-        const message = rpcError.message || "Invalid or expired table invite";
-        setError(message);
-        return { success: false, error: message };
+      if (authError) {
+        throw new Error(
+          "Could not restore your guest sign-in. Check your connection and retry.",
+        );
       }
 
-      if (!data || data.length === 0) {
-        const message = "Invalid or expired table invite";
-        setError(message);
-        return { success: false, error: message };
+      const user = data.session?.user;
+
+      if (!user?.id || !user.is_anonymous) {
+        localStorage.removeItem(STORAGE_KEY);
+        setSession(null);
+        return;
       }
 
-      const result = data[0];
-      const newSession: TableSession = {
-        sessionId: result.session_id,
-        guestNumber: result.guest_number,
-        displayLabel: result.display_label,
-      };
-
-      setSession(newSession);
-      localStorage.setItem("hotel-amrut-session", JSON.stringify(newSession));
-      return { success: true, session: newSession };
+      setSession(await validateSession(sessionId, user.id));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to join table";
-      setError(message);
-      return { success: false, error: message };
+      setSession(null);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not verify this table session.",
+      );
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, validateSession]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restoreSession();
+
+    const onFocus = () => void restoreSession();
+    window.addEventListener("focus", onFocus);
+
+    return () => window.removeEventListener("focus", onFocus);
+  }, [restoreSession]);
+
+  const join = useCallback(
+    async (inviteToken: string): Promise<JoinResult> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Check the token's shape without ever logging the token itself.
+        if (!isValidInviteToken(inviteToken)) {
+          throw new Error(
+            "The invite link contains an invalid token. Please copy the newest invite link and try again.",
+          );
+        }
+
+        const { data: authData, error: authError } =
+          await supabase.auth.getSession();
+
+        if (authError) {
+          console.error("Guest auth session check failed:", authError.message);
+          throw new Error("Could not restore guest sign-in. Please retry.");
+        }
+
+        let user = authData.session?.user;
+
+        if (user && !user.is_anonymous) {
+          throw new Error(
+            "Sign out of the staff account before joining as a guest.",
+          );
+        }
+
+        if (!user) {
+          const { data, error: signInError } =
+            await supabase.auth.signInAnonymously();
+
+          if (signInError || !data.user) {
+            console.error(
+              "Anonymous sign-in failed:",
+              signInError?.message ?? "No user returned",
+            );
+            throw new Error(
+              "Could not start a guest session. Check local Supabase Auth settings and retry.",
+            );
+          }
+
+          user = data.user;
+        }
+
+        const { data, error: rpcError } = await supabase.rpc(
+          "join_table_session",
+          {
+            p_invite_token: inviteToken,
+          },
+        );
+
+        if (rpcError) {
+          // Log only diagnostic fields, never the invite token or auth credentials.
+          console.error("join_table_session RPC failed:", {
+            code: rpcError.code,
+            message: rpcError.message,
+            details: rpcError.details,
+            hint: rpcError.hint,
+          });
+
+          throw new Error(getJoinErrorMessage(rpcError.code));
+        }
+
+        const result = Array.isArray(data) ? data[0] : null;
+
+        if (!result?.session_id) {
+          console.error("join_table_session returned no session identifier.");
+          throw new Error(
+            "The database did not return a table session. Please try a new invite.",
+          );
+        }
+
+        // Persist only the session identifier. Every restore rechecks Auth,
+        // membership, and status.
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ sessionId: result.session_id }),
+        );
+
+        const joinedSession = await validateSession(
+          result.session_id,
+          user.id,
+        );
+
+        setSession(joinedSession);
+
+        return { success: true, session: joinedSession };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to join table.";
+
+        setError(message);
+
+        return { success: false, error: message };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [supabase, validateSession],
+  );
 
   const clearSession = useCallback(() => {
     setSession(null);
-    localStorage.removeItem("hotel-amrut-session");
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  return { session, loading, error, join, clearSession };
+  return {
+    session,
+    loading,
+    error,
+    join,
+    clearSession,
+    refreshSession: restoreSession,
+  };
 }

@@ -1,69 +1,74 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useTableSession } from "@/hooks/useTableSession";
 import { Icon } from "@/app/page";
+import { cleanInviteUrl, extractInviteToken } from "@/lib/guest-invite.mjs";
 
 function JoinViewInner() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const { session, loading, join } = useTableSession();
+  const { session, loading, error: sessionError, join } = useTableSession();
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const joinLock = useRef(false);
+  const autoAttemptedToken = useRef<string | null>(null);
 
-  const inviteToken = searchParams.get("token");
+  useEffect(() => {
+    const currentUrl = window.location.href;
+    const token = extractInviteToken(currentUrl, window.location.origin);
+    if (!token) return;
+
+    // Remove both legacy query tokens and fragment tokens from browser history before Auth/RPC work.
+    window.history.replaceState(window.history.state, "", cleanInviteUrl(currentUrl));
+    const timeout = window.setTimeout(() => setInviteToken(token), 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   const attemptJoin = useCallback(async (token: string) => {
+    if (joinLock.current) return;
+    joinLock.current = true;
     setJoinLoading(true);
     setJoinError(null);
-    const result = await join(token);
-    if (!result.success) {
-      setJoinError(result.error ?? "Invalid or expired table invite");
+    try {
+      const result = await join(token);
+      if (!result.success) setJoinError(result.error ?? "Invalid or expired table invite.");
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : "Could not join this table. Please retry.");
+    } finally {
+      joinLock.current = false;
+      setJoinLoading(false);
     }
-    setJoinLoading(false);
   }, [join]);
 
   useEffect(() => {
-    if (session) {
-      router.push("/");
-    }
+    if (session) router.replace("/");
   }, [session, router]);
 
   useEffect(() => {
-    if (inviteToken && !session && !loading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      attemptJoin(inviteToken);
+    if (inviteToken && !session && !loading && autoAttemptedToken.current !== inviteToken) {
+      autoAttemptedToken.current = inviteToken;
+      void attemptJoin(inviteToken);
     }
   }, [inviteToken, session, loading, attemptJoin]);
 
-  const handleRetry = () => {
-    if (inviteToken) {
-      attemptJoin(inviteToken);
+  const handlePasteJoin = (value: string) => {
+    const token = extractInviteToken(value, window.location.origin);
+    if (!token) {
+      setJoinError("Paste a valid invite token or invite link.");
+      return;
     }
+    setInviteToken(token);
+    void attemptJoin(token);
   };
 
-  const handleClearToken = () => {
-    router.push("/join");
-  };
-
-  if (loading) {
-    return (
-      <main className="app-shell">
-        <div className="join-loading">
-          <div className="join-spinner" aria-busy="true" aria-label="Loading…" />
-          <p>Preparing your table…</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (joinLoading) {
+  if (loading || joinLoading) {
     return (
       <main className="app-shell">
         <div className="join-loading">
           <div className="join-spinner" aria-busy="true" aria-label="Joining table…" />
-          <p>Joining your table…</p>
+          <p>{joinLoading ? "Joining your table…" : "Checking your table session…"}</p>
         </div>
       </main>
     );
@@ -75,13 +80,13 @@ function JoinViewInner() {
         <div className="join-error">
           <div className="join-error-icon"><Icon name="close" /></div>
           <h1>Couldn&apos;t join table</h1>
-          <p>{joinError || "Invalid or expired table invite"}</p>
+          <p>{joinError || "Invalid or expired table invite."}</p>
           <p className="join-hint">This invite may have expired, been revoked, or the table session may be closed.</p>
           <div className="join-actions">
-            <button className="primary-button" onClick={handleRetry}>
+            <button className="primary-button" disabled={!inviteToken} onClick={() => inviteToken && void attemptJoin(inviteToken)}>
               <Icon name="arrow" /> Try again
             </button>
-            <button className="outline-button" onClick={handleClearToken}>
+            <button className="outline-button" onClick={() => { setInviteToken(null); setJoinError(null); router.replace("/join"); }}>
               Start over
             </button>
           </div>
@@ -90,52 +95,33 @@ function JoinViewInner() {
     );
   }
 
-  // No token provided - show join landing page
   return (
     <main className="app-shell">
       <div className="join-landing">
         <div className="join-icon">✳</div>
         <h1>Join your table</h1>
         <p>Scan the QR code on your table or enter the invite link you received.</p>
+        {sessionError && <p role="alert" className="inline-note">{sessionError}</p>}
         <div className="join-input-group">
-          <label htmlFor="invite-token" className="visually-hidden">Invite token</label>
+          <label htmlFor="invite-token" className="visually-hidden">Invite token or link</label>
           <input
             id="invite-token"
             type="text"
             placeholder="Paste invite link or token"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const value = e.currentTarget.value.trim();
-                if (value) {
-                  const token = value.includes("/join?token=")
-                    ? new URL(value, window.location.origin).searchParams.get("token")
-                    : value;
-                  if (token) {
-                    router.push(`/join?token=${encodeURIComponent(token)}`);
-                  }
-                }
-              }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handlePasteJoin(event.currentTarget.value);
             }}
             autoFocus
           />
           <button className="primary-button" onClick={() => {
-            const input = document.getElementById("invite-token") as HTMLInputElement;
-            if (input?.value.trim()) {
-              const value = input.value.trim();
-              const token = value.includes("/join?token=")
-                ? new URL(value, window.location.origin).searchParams.get("token")
-                : value;
-              if (token) {
-                router.push(`/join?token=${encodeURIComponent(token)}`);
-              }
-            }
+            const input = document.getElementById("invite-token") as HTMLInputElement | null;
+            if (input) handlePasteJoin(input.value);
           }}>
             <Icon name="arrow" /> Join
           </button>
         </div>
-        <p className="join-demo-note">
-          Demo: use a token from <code>npm run db:test:join</code> output or staff invite issuance.
-        </p>
+        {joinError && <p role="alert" className="inline-note">{joinError}</p>}
+        <p className="join-demo-note">Guest ordering demo. Invite links are validated by the table service.</p>
       </div>
     </main>
   );

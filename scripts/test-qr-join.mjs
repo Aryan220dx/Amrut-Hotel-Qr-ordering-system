@@ -6,9 +6,9 @@
  * - Verifies the join flow works through the Next.js dev server
  */
 
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 
@@ -26,8 +26,6 @@ try {
 
   const apiUrl = status.API_URL;
   const apiKey = status.PUBLISHABLE_KEY;
-  const secretKey = status.SECRET_KEY;
-
   if (!apiUrl?.startsWith('http://127.0.0.1:')) {
     throw new Error('Local Supabase API must be running');
   }
