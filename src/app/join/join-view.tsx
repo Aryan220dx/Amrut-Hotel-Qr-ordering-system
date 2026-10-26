@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTableSession } from "@/hooks/useTableSession";
 import { Icon } from "@/app/page";
 import { cleanInviteUrl, extractInviteToken } from "@/lib/guest-invite.mjs";
+import { getJoinViewMode } from "@/lib/join-view-state.mjs";
+import styles from "./join.module.css";
+
+const GUEST_NAME_KEY = "hotel-amrut-guest-name";
 
 function JoinViewInner() {
   const router = useRouter();
@@ -12,8 +16,21 @@ function JoinViewInner() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
   const joinLock = useRef(false);
-  const autoAttemptedToken = useRef<string | null>(null);
+  const viewMode = getJoinViewMode(joinError, inviteToken);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(GUEST_NAME_KEY);
+      if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDisplayName(stored);
+      }
+    } catch {
+      // The name is optional; continue with an empty field when storage is blocked.
+    }
+  }, []);
 
   useEffect(() => {
     const currentUrl = window.location.href;
@@ -26,13 +43,13 @@ function JoinViewInner() {
     return () => window.clearTimeout(timeout);
   }, []);
 
-  const attemptJoin = useCallback(async (token: string) => {
+  const attemptJoin = useCallback(async (token: string, name?: string) => {
     if (joinLock.current) return;
     joinLock.current = true;
     setJoinLoading(true);
     setJoinError(null);
     try {
-      const result = await join(token);
+      const result = await join(token, name);
       if (!result.success) setJoinError(result.error ?? "Invalid or expired table invite.");
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : "Could not join this table. Please retry.");
@@ -46,13 +63,6 @@ function JoinViewInner() {
     if (session) router.replace("/");
   }, [session, router]);
 
-  useEffect(() => {
-    if (inviteToken && !session && !loading && autoAttemptedToken.current !== inviteToken) {
-      autoAttemptedToken.current = inviteToken;
-      void attemptJoin(inviteToken);
-    }
-  }, [inviteToken, session, loading, attemptJoin]);
-
   const handlePasteJoin = (value: string) => {
     const token = extractInviteToken(value, window.location.origin);
     if (!token) {
@@ -60,7 +70,19 @@ function JoinViewInner() {
       return;
     }
     setInviteToken(token);
-    void attemptJoin(token);
+    setJoinError(null);
+  };
+
+  const handleNameSubmit = (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!inviteToken) return;
+    const name = displayName.trim() || undefined;
+    void attemptJoin(inviteToken, name);
+  };
+
+  const handleSkip = () => {
+    if (!inviteToken) return;
+    void attemptJoin(inviteToken, undefined);
   };
 
   if (loading || joinLoading) {
@@ -74,7 +96,7 @@ function JoinViewInner() {
     );
   }
 
-  if (joinError || (inviteToken && !session)) {
+  if (viewMode === "error") {
     return (
       <main className="app-shell">
         <div className="join-error">
@@ -83,10 +105,15 @@ function JoinViewInner() {
           <p>{joinError || "Invalid or expired table invite."}</p>
           <p className="join-hint">This invite may have expired, been revoked, or the table session may be closed.</p>
           <div className="join-actions">
-            <button className="primary-button" disabled={!inviteToken} onClick={() => inviteToken && void attemptJoin(inviteToken)}>
+            <button className="primary-button" disabled={!inviteToken} onClick={() => inviteToken && void attemptJoin(inviteToken, displayName.trim() || undefined)}>
               <Icon name="arrow" /> Try again
             </button>
-            <button className="outline-button" onClick={() => { setInviteToken(null); setJoinError(null); router.replace("/join"); }}>
+            {inviteToken && displayName.trim() && (
+              <button className="text-link" onClick={() => void attemptJoin(inviteToken, undefined)}>
+                Join without a name
+              </button>
+            )}
+            <button className="outline-button" onClick={() => { setInviteToken(null); setJoinError(null); setDisplayName(""); router.replace("/join"); }}>
               Start over
             </button>
           </div>
@@ -102,24 +129,50 @@ function JoinViewInner() {
         <h1>Join your table</h1>
         <p>Scan the QR code on your table or enter the invite link you received.</p>
         {sessionError && <p role="alert" className="inline-note">{sessionError}</p>}
-        <div className="join-input-group">
-          <label htmlFor="invite-token" className="visually-hidden">Invite token or link</label>
-          <input
-            id="invite-token"
-            type="text"
-            placeholder="Paste invite link or token"
-            onKeyDown={(event) => {
-              if (event.key === "Enter") handlePasteJoin(event.currentTarget.value);
-            }}
-            autoFocus
-          />
-          <button className="primary-button" onClick={() => {
-            const input = document.getElementById("invite-token") as HTMLInputElement | null;
-            if (input) handlePasteJoin(input.value);
-          }}>
-            <Icon name="arrow" /> Join
-          </button>
-        </div>
+
+        {viewMode === "name" ? (
+          <form className={styles.nameForm} onSubmit={handleNameSubmit}>
+            <label htmlFor="guest-name" className="visually-hidden">Your name</label>
+            <input
+              id="guest-name"
+              type="text"
+              placeholder="Your name (e.g. Rahul)"
+              maxLength={32}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              autoFocus
+            />
+            <small className={styles.nameHint}>This label identifies your order to the kitchen.</small>
+            <div className={styles.nameActions}>
+              <button type="submit" className="primary-button" disabled={joinLoading}>
+                <Icon name="arrow" /> Join table
+              </button>
+              <button type="button" className="text-link" onClick={handleSkip}>
+                Join without a name
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="join-input-group">
+            <label htmlFor="invite-token" className="visually-hidden">Invite token or link</label>
+            <input
+              id="invite-token"
+              type="text"
+              placeholder="Paste invite link or token"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handlePasteJoin(event.currentTarget.value);
+              }}
+              autoFocus
+            />
+            <button className="primary-button" onClick={() => {
+              const input = document.getElementById("invite-token") as HTMLInputElement | null;
+              if (input) handlePasteJoin(input.value);
+            }}>
+              <Icon name="arrow" /> Join
+            </button>
+          </div>
+        )}
+
         {joinError && <p role="alert" className="inline-note">{joinError}</p>}
         <p className="join-demo-note">Guest ordering demo. Invite links are validated by the table service.</p>
       </div>

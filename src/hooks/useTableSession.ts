@@ -3,7 +3,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getJoinErrorMessage, isValidInviteToken } from "@/lib/guest-invite.mjs";
+import {
+  getJoinErrorMessage,
+  getJoinRpcCompatibilityAction,
+  isValidInviteToken,
+} from "@/lib/guest-invite.mjs";
 
 export interface TableSession {
   sessionId: string;
@@ -166,7 +170,7 @@ export function useTableSession() {
   }, [restoreSession]);
 
   const join = useCallback(
-    async (inviteToken: string): Promise<JoinResult> => {
+    async (inviteToken: string, displayName?: string): Promise<JoinResult> => {
       setLoading(true);
       setError(null);
 
@@ -211,23 +215,45 @@ export function useTableSession() {
           user = data.user;
         }
 
-        const { data, error: rpcError } = await supabase.rpc(
-          "join_table_session",
-          {
-            p_invite_token: inviteToken,
-          },
+        // Try with displayName first. Older databases expose only the one-argument RPC.
+        const rpcResult = await supabase.rpc("join_table_session", {
+          p_invite_token: inviteToken,
+          p_display_name: displayName?.trim() || null,
+        });
+
+        let { data, error: rpcError } = rpcResult;
+
+        const supabaseError = rpcError && typeof rpcError === "object" && "code" in rpcError
+          ? rpcError as { code: string; message?: string; details?: string; hint?: string }
+          : null;
+
+        const compatibilityAction = getJoinRpcCompatibilityAction(
+          supabaseError?.code,
+          displayName,
         );
+
+        if (compatibilityAction === "name-unsupported") {
+          throw new Error(getJoinErrorMessage("PGRST202"));
+        }
+
+        if (compatibilityAction === "legacy") {
+          const fallbackResult = await supabase.rpc("join_table_session", {
+            p_invite_token: inviteToken,
+          });
+          ({ data, error: rpcError } = fallbackResult);
+        }
 
         if (rpcError) {
           // Log only diagnostic fields, never the invite token or auth credentials.
+          const errObj = rpcError as { code?: string; message?: string; details?: string; hint?: string };
           console.error("join_table_session RPC failed:", {
-            code: rpcError.code,
-            message: rpcError.message,
-            details: rpcError.details,
-            hint: rpcError.hint,
+            code: errObj.code,
+            message: errObj.message,
+            details: errObj.details,
+            hint: errObj.hint,
           });
 
-          throw new Error(getJoinErrorMessage(rpcError.code));
+          throw new Error(getJoinErrorMessage(errObj.code ?? null));
         }
 
         const result = Array.isArray(data) ? data[0] : null;
@@ -245,6 +271,18 @@ export function useTableSession() {
           STORAGE_KEY,
           JSON.stringify({ sessionId: result.session_id }),
         );
+
+        // Persist guest display name separately if provided
+        if (displayName?.trim()) {
+          try {
+            localStorage.setItem(
+              "hotel-amrut-guest-name",
+              displayName.trim().slice(0, 32),
+            );
+          } catch {
+            // A blocked localStorage must not turn a successful join into a failure.
+          }
+        }
 
         const joinedSession = await validateSession(
           result.session_id,

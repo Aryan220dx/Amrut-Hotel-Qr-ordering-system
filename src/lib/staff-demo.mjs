@@ -22,9 +22,12 @@ export function getInviteRow(data) {
   return row;
 }
 
-export function buildInviteLink(origin, token) {
+export function buildInviteLink(origin, token, lanOrigin) {
   if (!token) throw new Error("An invite token is required.");
-  const url = new URL("/join", origin);
+  const inviteOrigin = new URL(origin);
+  const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(inviteOrigin.hostname.replace(/^\[|\]$/g, "").toLowerCase());
+  const targetOrigin = isLoopback && lanOrigin ? new URL(lanOrigin).origin : inviteOrigin.origin;
+  const url = new URL("/join", targetOrigin);
   url.hash = new URLSearchParams({ token }).toString();
   return url.toString();
 }

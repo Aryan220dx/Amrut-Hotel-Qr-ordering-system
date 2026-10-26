@@ -322,7 +322,11 @@ export default function StaffPage() {
       });
       if (error) throw error;
       const invite = getInviteRow(data);
-      setInviteLink(buildInviteLink(window.location.origin, invite.invite_token));
+      setInviteLink(buildInviteLink(
+        window.location.origin,
+        invite.invite_token,
+        process.env.NEXT_PUBLIC_LAN_ORIGIN,
+      ));
       setInviteExpiry(invite.expires_at);
     } catch {
       setInviteLink(null);

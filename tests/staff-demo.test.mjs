@@ -27,6 +27,16 @@ test("invite token appears only in the URL fragment", () => {
   assert.throws(() => buildInviteLink("http://localhost:3000", ""), /token is required/);
 });
 
+test("LAN invite origin replaces loopback when configured", () => {
+  const link = new URL(
+    buildInviteLink("http://localhost:3000", "a".repeat(43), "http://192.168.0.194:3000"),
+  );
+
+  assert.equal(link.origin, "http://192.168.0.194:3000");
+  assert.equal(link.pathname, "/join");
+  assert.equal(link.hash, `#token=${"a".repeat(43)}`);
+});
+
 test("demo table configuration accepts only explicit UUIDs and supports selection", () => {
   assert.deepEqual(
     parseDemoTableIds("  272cab32-84ff-4b9a-9d32-4ae2c255d063, invalid, e0e8a811-08be-45f9-8345-545c19c1093f, 272cab32-84ff-4b9a-9d32-4ae2c255d063 "),

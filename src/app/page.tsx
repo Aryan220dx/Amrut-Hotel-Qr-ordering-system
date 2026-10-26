@@ -16,6 +16,7 @@ import {
 } from "@/lib/order-helpers.mjs";
 import { useCart, type CartItem } from "@/hooks/useCart";
 import { useTableSession } from "@/hooks/useTableSession";
+import cartStyles from "./cart.module.css";
 
 type View = "menu" | "checkout" | "tracking" | "history";
 type PaymentMode = "one" | "equal" | "items";
@@ -87,6 +88,7 @@ export default function Home() {
   const [optionSelections, setOptionSelections] = useState<Record<string, Record<string, string | string[]>>>({});
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("one");
   const [guestNote, setGuestNote] = useState("");
+  const [cartTab, setCartTab] = useState<"shared" | "mine">("shared");
   const [showCart, setShowCart] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [order, setOrder] = useState<OrderStatusRow | null>(null);
@@ -490,13 +492,26 @@ export default function Home() {
 
       {view === "menu" && <div className={`cart-dock ${count ? "has-items" : ""}`}><button className="dock-main" onClick={() => setShowCart(true)}><span className="dock-icon"><Icon name="bag"/>{count > 0 && <i>{count}</i>}</span><span className="dock-copy"><b>{count ? `${count} ${count === 1 ? "item" : "items"} for ${session.tableLabel}` : "Your table's order"}</b><small>{count ? "Shared cart · refreshes every 3 seconds" : "Nothing added yet · take a look"}</small></span><b className="dock-total">{formatINR(subtotal)}</b><span className="dock-arrow"><Icon name="arrow"/></span></button></div>}
 
-      {showCart && <div className="drawer-scrim" role="presentation" onClick={() => setShowCart(false)}><section ref={cartDialogRef} className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow">{session.tableLabel} · SHARED BASKET</span><h2 id="drawer-title">Good picks.</h2></div><button className="close-button" aria-label="Close basket" onClick={() => setShowCart(false)}><Icon name="close"/></button></div><div className="shared-callout"><span className="live-dot"/><div><b>One order for the table</b><p>Cart changes appear on other guests&apos; pages within about three seconds while open.</p></div></div>{cartError && <p className="inline-note" role="alert">{cartError}<button className="text-link" onClick={() => void refreshCart()}>Retry</button></p>}{drawerLines()}</section></div>}
+      {showCart && <div className="drawer-scrim" role="presentation" onClick={() => setShowCart(false)}><section ref={cartDialogRef} className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow">{session.tableLabel} · SHARED BASKET</span><h2 id="drawer-title">Good picks.</h2></div><button className="close-button" aria-label="Close basket" onClick={() => setShowCart(false)}><Icon name="close"/></button></div><div className={cartStyles.tabs} role="tablist"><button role="tab" aria-selected={cartTab === "shared"} className={`${cartStyles.tab} ${cartTab === "shared" ? cartStyles.active : ""}`} onClick={() => setCartTab("shared")}>Table Cart ({cartItems.reduce((sum, l) => sum + l.quantity, 0)})</button><button role="tab" aria-selected={cartTab === "mine"} className={`${cartStyles.tab} ${cartTab === "mine" ? cartStyles.active : ""}`} onClick={() => setCartTab("mine")}>My Items ({cartItems.filter((l) => l.isMine).reduce((sum, l) => sum + l.quantity, 0)})</button></div><div className="shared-callout"><span className="live-dot"/><div><b>One order for the table</b><p>Cart changes appear on other guests&apos; pages within about three seconds while open.</p></div></div>{cartError && <p className="inline-note" role="alert">{cartError}<button className="text-link" onClick={() => void refreshCart()}>Retry</button></p>}{drawerLines()}</section></div>}
     </main>
   );
 
   function drawerLines() {
+    // Filter lines based on active cart tab
+    const displayedLines = cartTab === "mine"
+      ? cartItems.filter((line) => line.isMine)
+      : cartItems;
+    const displaySubtotal = cartTab === "mine"
+      ? displayedLines.reduce((sum, l) => sum + l.lineTotalPaise, 0)
+      : subtotal;
+
     if (cartLoading) return <div className="drawer-lines"><div className="empty-cart"><div className="join-spinner" aria-busy="true" aria-label="Loading cart…"/></div></div>;
-    if (!cartItems.length) return <div className="drawer-lines"><div className="empty-cart"><span className="empty-cart-art">✳</span><h3>Room for something good.</h3><p>Add a favourite and it will show here for everyone at your table.</p><button className="text-link" onClick={() => setShowCart(false)}>Browse the menu <Icon name="arrow"/></button></div></div>;
-    return <><div className="drawer-lines">{cartItems.map((line) => <div className="cart-line" key={line.id}><div className="cart-thumb" style={{ backgroundImage: `url("${menuItems.find((item) => item.id === line.menuItemId)?.image_url ?? ""}")` }}/><div className="cart-line-info"><b>{line.name}</b>{optionSummary(line.menuItemId, line.optionSelections) && <small>{optionSummary(line.menuItemId, line.optionSelections)}</small>}<small>{line.memberLabel}{line.isMine ? " · you" : ""}</small><strong>{formatINR(line.lineTotalPaise)}</strong></div>{line.isMine ? <div className="qty-control"><button aria-label={`Remove one ${line.name}`} onClick={() => void changeLineQuantity(line, -1)}><Icon name="minus"/></button><span>{line.quantity}</span><button aria-label={`Add one ${line.name}`} onClick={() => void changeLineQuantity(line, 1)}><Icon name="plus"/></button></div> : <span className="mock-label">GUEST CONTROL</span>}</div>)}</div><div className="drawer-bottom"><div className="subtotal-row"><span>Table subtotal</span><b>{formatINR(subtotal)}</b></div><span className="mock-label">SHARED VIA DATABASE · 3 SECOND REFRESH</span><button className="primary-button" onClick={() => setViewAndClose("checkout")}>Choose how to split <Icon name="arrow"/></button></div></>;
+    if (!displayedLines.length) {
+      const emptyMessage = cartTab === "mine"
+        ? "You haven't added anything yet. Browse the menu to pick your items."
+        : "Add a favourite and it will show here for everyone at your table.";
+      return <div className="drawer-lines"><div className="empty-cart"><span className="empty-cart-art">✳</span><h3>{cartTab === "mine" ? "No personal items yet" : "Room for something good."}</h3><p>{emptyMessage}</p><button className="text-link" onClick={() => setShowCart(false)}>Browse the menu <Icon name="arrow"/></button></div></div>;
+    }
+    return <><div className="drawer-lines">{displayedLines.map((line) => <div className="cart-line" key={line.id}><div className="cart-thumb" style={{ backgroundImage: `url("${menuItems.find((item) => item.id === line.menuItemId)?.image_url ?? ""}")` }}/><div className="cart-line-info"><b>{line.name}</b>{optionSummary(line.menuItemId, line.optionSelections) && <small>{optionSummary(line.menuItemId, line.optionSelections)}</small>}<small>{line.memberLabel}{line.isMine && cartTab === "mine" ? " · you" : ""}</small><strong>{formatINR(line.lineTotalPaise)}</strong></div>{line.isMine ? <div className="qty-control"><button aria-label={`Remove one ${line.name}`} onClick={() => void changeLineQuantity(line, -1)}><Icon name="minus"/></button><span>{line.quantity}</span><button aria-label={`Add one ${line.name}`} onClick={() => void changeLineQuantity(line, 1)}><Icon name="plus"/></button></div> : cartTab === "mine" ? <span className="mock-label">OTHER</span> : <span className="mock-label">GUEST CONTROL</span>}</div>)}</div><div className="drawer-bottom"><div className="subtotal-row"><span>{cartTab === "mine" ? "Your subtotal" : "Table subtotal"}</span><b>{formatINR(displaySubtotal)}</b></div><span className="mock-label">SHARED VIA DATABASE · 3 SECOND REFRESH</span>{cartTab === "shared" && <button className="primary-button" onClick={() => setViewAndClose("checkout")}>Choose how to split <Icon name="arrow"/></button>}</div></>;
   }
 }

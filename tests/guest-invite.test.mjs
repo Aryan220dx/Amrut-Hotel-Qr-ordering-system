@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   cleanInviteUrl,
   extractInviteToken,
+  getJoinRpcCompatibilityAction,
   getJoinErrorMessage,
   isValidInviteToken,
 } from "../src/lib/guest-invite.mjs";
@@ -36,4 +37,11 @@ test("join errors give guests a recovery action without exposing database intern
   assert.doesNotMatch(getJoinErrorMessage("22023"), /console|22023|database rejected/i);
   assert.match(getJoinErrorMessage("42501"), /fresh guest session/);
   assert.match(getJoinErrorMessage("other"), /Please retry/);
+});
+
+test("legacy join fallback is limited to the missing PostgREST signature and unnamed guests", () => {
+  assert.equal(getJoinRpcCompatibilityAction("PGRST202", ""), "legacy");
+  assert.equal(getJoinRpcCompatibilityAction("PGRST202", "Asha"), "name-unsupported");
+  assert.equal(getJoinRpcCompatibilityAction("42704", ""), null);
+  assert.match(getJoinErrorMessage("PGRST202"), /join without a name/i);
 });

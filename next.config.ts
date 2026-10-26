@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = { turbopack: { root: process.cwd() } };
+const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.0.194"],
+  turbopack: { root: process.cwd() },
+};
 
 export default nextConfig;

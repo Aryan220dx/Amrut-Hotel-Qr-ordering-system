@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { resolveBrowserSupabaseUrl } from '../browser-supabase-url.mjs';
 
 let browserClient: SupabaseClient | null = null;
 
@@ -9,7 +10,11 @@ export function createSupabaseBrowserClient() {
     throw new Error("Supabase is not configured. Set the public URL and publishable key.");
   }
 
-  const create = () => createClient(url, key, {
+  const browserUrl = typeof window === "undefined" || process.env.NODE_ENV !== "development"
+    ? url
+    : resolveBrowserSupabaseUrl(url, window.location.origin);
+
+  const create = () => createClient(browserUrl, key, {
     auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
   });
 

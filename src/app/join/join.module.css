@@ -1,0 +1,76 @@
+.nameForm {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 390px);
+  margin: 24px auto 0;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+  box-shadow: 0 18px 48px rgb(41 39 32 / 8%);
+  text-align: left;
+  animation: nameFormEnter 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.nameForm input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, #39827a);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.nameForm input:focus-visible {
+  border-color: #39827a;
+  outline: none;
+  box-shadow: 0 0 0 4px rgb(57 130 122 / 15%);
+  transform: translateY(-1px);
+}
+
+.nameHint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nameActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 4px;
+}
+
+.nameActions :global(.primary-button) {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.nameActions :global(.primary-button:hover:not(:disabled)) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgb(34 73 68 / 18%);
+}
+
+@keyframes nameFormEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nameForm,
+  .nameForm input,
+  .nameActions :global(.primary-button) {
+    animation: none;
+    transition: none;
+  }
+}

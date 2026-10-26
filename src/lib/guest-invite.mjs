@@ -28,12 +28,20 @@ export function cleanInviteUrl(urlValue) {
   return `${url.pathname}${url.search}`;
 }
 
+export function getJoinRpcCompatibilityAction(code, displayName) {
+  if (code !== "PGRST202") return null;
+  return displayName?.trim() ? "name-unsupported" : "legacy";
+}
+
 export function getJoinErrorMessage(code) {
   if (code === "42501") {
     return "Guest sign-in was rejected. Please start a fresh guest session and try again.";
   }
   if (code === "22023") {
     return "This invite is invalid or expired, or its table is no longer available. Ask staff for a fresh invite and try again.";
+  }
+  if (code === "PGRST202") {
+    return "This database does not support guest names yet. Choose ‘Join without a name’ to continue, or ask staff to update the local database.";
   }
   return "Could not join the table because the database request failed. Please retry.";
 }
